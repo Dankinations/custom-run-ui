@@ -18,4 +18,7 @@ Flow launcher UI written in GODOT (yes, godot)
 - CRU is not heavily tested, so if any issues pop up, please report them!
 
 ### Ease of use:
-If you wanna CRU easier, i recommend using [url=https://github.com/AutoHotkey/AutoHotkey/releases]AutoHotKey[/url].
+If you wanna CRU easier, i recommend using [AutoHotKey](https://github.com/AutoHotkey/AutoHotkey/releases)
+
+here's a script that should work
+#r::Run "PATH/TO/CRU" 
