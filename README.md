@@ -14,6 +14,7 @@ Flow launcher UI written in GODOT (yes, godot)
   - shell:programs
   - shell:desktop
 - CRU is not heavily tested, so if any issues pop up, please report them!
+- You can do ctrl + shift + enter to run a command no matter what!
 
 ### CRU-specific commands:
 - reload - reloads all the .lnk files from "Program Files/Start Menu/Programs" so it can display the shortcuts to apps (with icons!)
