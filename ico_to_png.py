@@ -8,18 +8,36 @@ import win32api
 from PIL import Image
 
 
-def resolve_lnk(lnk_path):
-    """Return the target path of a .lnk shortcut."""
+def resolve_lnk_full(lnk_path):
     shell = win32com.client.Dispatch("WScript.Shell")
     shortcut = shell.CreateShortcut(lnk_path)
-    return shortcut.Targetpath
+    return shortcut.Targetpath, shortcut.IconLocation
+
+
+def resolve_real_exe_if_update(target):
+    """
+    If shortcut points to Update.exe (Discord/Slack/etc),
+    try to find real exe in app-* folders.
+    """
+    if not target:
+        return target
+
+    if target.lower().endswith("update.exe"):
+        base = os.path.dirname(target)
+
+        try:
+            for name in os.listdir(base):
+                if name.lower().startswith("app-"):
+                    candidate = os.path.join(base, name, "Discord.exe")
+                    if os.path.exists(candidate):
+                        return candidate
+        except Exception:
+            pass
+
+    return target
 
 
 def extract_largest_icon_to_png(file_path, output_png):
-    """
-    Extract the largest available icon from file_path to output_png.
-    Skip if no icon or PNG already exists.
-    """
     if os.path.exists(output_png):
         print(f"PNG already exists: {output_png}, skipping.")
         return False
@@ -27,7 +45,6 @@ def extract_largest_icon_to_png(file_path, output_png):
     largest_hicon = None
     largest_size = 0
 
-    # Try indices 0-9
     for index in range(0, 10):
         try:
             large, small = win32gui.ExtractIconEx(file_path, index)
@@ -36,42 +53,37 @@ def extract_largest_icon_to_png(file_path, output_png):
 
         if large:
             hicon = large[0]
-            # Get icon size
-            icon_info = win32gui.GetIconInfo(hicon)
-            width = icon_info[1][2] if icon_info else 0
-            height = icon_info[1][3] if icon_info else 0
-            area = width * height
-            if area > largest_size:
-                largest_size = area
+
+            # We assume larger index often = larger icon
+            size_guess = 256 - index * 16
+            if size_guess > largest_size:
+                largest_size = size_guess
                 largest_hicon = hicon
             else:
                 win32gui.DestroyIcon(hicon)
-            # Destroy other icons
+
             for ico in small:
                 win32gui.DestroyIcon(ico)
 
     if not largest_hicon:
-        return False  # no icon found
+        return False
 
     hicon = largest_hicon
 
     try:
-        # Create device contexts
         hdc = win32ui.CreateDCFromHandle(win32gui.GetDC(0))
         hbmp = win32ui.CreateBitmap()
 
-        size = 256  # max size for PNG
+        size = 256
         hbmp.CreateCompatibleBitmap(hdc, size, size)
 
         hdc_mem = hdc.CreateCompatibleDC()
         hdc_mem.SelectObject(hbmp)
 
-        # Fill background black
         brush = win32ui.CreateBrush()
         brush.CreateSolidBrush(win32api.RGB(0, 0, 0))
         hdc_mem.FillRect((0, 0, size, size), brush)
 
-        # Draw icon
         win32gui.DrawIconEx(
             hdc_mem.GetHandleOutput(),
             0,
@@ -84,7 +96,6 @@ def extract_largest_icon_to_png(file_path, output_png):
             win32con.DI_NORMAL
         )
 
-        # Convert to PNG
         bmpinfo = hbmp.GetInfo()
         bmpstr = hbmp.GetBitmapBits(True)
 
@@ -113,18 +124,20 @@ def main():
         print("  python lnk_icon_to_png.py --leads-to-exe shortcut.lnk")
         return
 
-    # Special flag: check if leads to EXE
+    # --- Special flag ---
     if sys.argv[1] == "--leads-to-exe":
         if len(sys.argv) < 3:
             print("false")
             return
+
         lnk = sys.argv[2]
 
         if not os.path.exists(lnk):
             print("false")
             return
 
-        target = resolve_lnk(lnk)
+        target, icon_loc = resolve_lnk_full(lnk)
+        target = resolve_real_exe_if_update(target)
 
         if os.path.exists(target) and target.lower().endswith(".exe"):
             print("true")
@@ -132,7 +145,7 @@ def main():
             print("false")
         return
 
-    # Default behavior: lnk + output.png
+    # --- Normal behavior ---
     if len(sys.argv) < 3:
         print("Error: shortcut and output PNG required.")
         return
@@ -144,13 +157,28 @@ def main():
         print(f"Shortcut not found: {lnk}")
         return
 
-    target = resolve_lnk(lnk)
+    target, icon_loc = resolve_lnk_full(lnk)
 
-    if not os.path.exists(target):
-        print(f"Target not found: {target}")
+    # Try resolving real exe (Discord etc)
+    target = resolve_real_exe_if_update(target)
+
+    icon_path = None
+
+    # 1️⃣ Try icon location from shortcut
+    if icon_loc:
+        icon_path = icon_loc.split(",")[0]
+        if not os.path.exists(icon_path):
+            icon_path = None
+
+    # 2️⃣ Fallback to target exe
+    if not icon_path and os.path.exists(target):
+        icon_path = target
+
+    if not icon_path:
+        print("No valid icon source found.")
         return
 
-    success = extract_largest_icon_to_png(target, out)
+    success = extract_largest_icon_to_png(icon_path, out)
 
     if success:
         print("Done:", out)

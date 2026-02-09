@@ -4,6 +4,7 @@ signal save_data()
 signal done_getting_start(args)
 signal finished_loading_icon(curr:int,max:int,what:String)
 signal finished_updating_path(CommandIndex)
+signal submit(new_text:String)
 
 var pathres:CommandIndex
 var dragging
@@ -19,16 +20,18 @@ var custom = ["exit","reload"]
 var pressedTab = false
 var thread:Thread
 var submitted = false
+var waited_refresh = false
 
 var global_color = Color("2f3179")
 const search_possibilities = {
 		"google:" : "https://www.google.com/search?q=",
 		"duckduckgo:" : "https://www.duckduckgo.com/?q=",
-		"bing:" : "https://www.bing.com/search?q=",
 }
 const window_offset = Vector2i(0,200)
-	
+const window_size = Vector2i(400,200)
+
 func _ready() -> void:
+	submit.connect(_on_text_submitted)
 	save_data.connect(func():
 		ResourceSaver.save(pathres,"user://path_cache.tres"))
 	done_getting_start.connect(save_data.emit)
@@ -38,12 +41,17 @@ func _ready() -> void:
 		swindow.get_node("Main/BGColor").color = pathres.uicolor
 		swindow.get_node("Main/Results").value = pathres.maxresults
 		)
+	finished_loading_icon.connect(func(curr,max,n):
+		$loading/Main.text = 'Loading... [%d/%d] %s' % [curr,max,n]
+		)
 	
 	update_path()
 	get_tree().set_auto_accept_quit(false)
 	set_process_input(true)
 	
 	var a = DisplayServer.screen_get_size()
+	$loading.size = Vector2i(a.x,16)
+	window.size = window_size
 	window.position = Vector2i(a.x/2-window.size.x/2,0-window.size.y/2-window.size.y)
 	tween_main("position",Vector2i(a.x/2-window.size.x/2,0-window.size.y/2),func(): pass)
 	
@@ -63,20 +71,20 @@ func _ready() -> void:
 	$Main/Prompt.gui_input.connect(func(e:InputEvent):
 		if e is InputEventKey:
 			var arrow = (e.keycode == KEY_UP or e.keycode == KEY_DOWN)
-			if e.pressed and (arrow or e.keycode == KEY_ENTER) and item_list.item_count != 0:
-				if arrow:
-					$Main/Prompt.accept_event()
-					curridx = clamp(curridx + (-1 if e.keycode == KEY_UP else 1),0,item_list.item_count-1)
+			if arrow: $Main/Prompt.accept_event()
+			if e.pressed and (arrow or e.keycode == KEY_ENTER):
+				if arrow and item_list.item_count > 0:
+					curridx = clamp(curridx + (-1 if e.keycode == KEY_UP else 1),0,max(item_list.item_count-1,0))
 					item_list.select(curridx)
 					item_list.ensure_current_is_visible()
-				if e.keycode == KEY_ENTER:
+				if e.keycode == KEY_ENTER and !submitted and (waited_refresh or $popup/ItemList.item_count <= 1):
+					$Main/Prompt.accept_event()
+					waited_refresh = false
 					if Input.is_key_pressed(KEY_CTRL) and Input.is_key_label_pressed(KEY_SHIFT):
-						$Main/Prompt.text_submitted.emit($Main/Prompt.text)
+						submit.emit($Main/Prompt.text)
+						submitted = true
 						return
-					if !$popup.visible or item_list.item_count == 0:
-						return
-					if !pressedTab and $popup.visible:
-						$Main/Prompt.accept_event()
+					if !pressedTab and $popup.visible and $popup/ItemList.item_count >= 1:
 						pressedTab = true
 						$Main/Prompt.text = item_list.get_item_text(curridx)
 						curridx = 0
@@ -84,7 +92,11 @@ func _ready() -> void:
 						item_list.select(curridx)
 						item_list.ensure_current_is_visible()
 						update_autocomplete($Main/Prompt.text)
-						if submitted: $Main/Prompt.accept_event()
+						return
+					if pressedTab or item_list.item_count <= 0:
+						submit.emit($Main/Prompt.text)
+						submitted = true
+					
 	)
 	$Main/Prompt.grab_focus()
 	$popup.position = window.position + window_offset
@@ -176,6 +188,7 @@ func handle_dir(path:String):
 	return lnks
 
 func get_start_programs():
+	$loading.visible = true
 	var py_path = ProjectSettings.globalize_path("res://ico_to_png.py") if OS.is_debug_build() else OS.get_executable_path().get_base_dir().path_join("ico_to_png.py")
 	DirAccess.remove_absolute("user://icons")
 	DirAccess.make_dir_absolute("user://icons")
@@ -343,7 +356,9 @@ func play_out_anim():
 	tween_popup("position",$popup.position+Vector2i($popup.size.x/2,0),func(): pass)
 	tween_main("position",window.position-Vector2i(0,100),func(): pass)
 
-func _on_prompt_text_submitted(new_text: String) -> void:
+func _on_text_submitted(new_text: String) -> void:
+	if submitted: return
+	submitted = true
 	for engine in search_possibilities.keys():
 		if engine in new_text.to_lower():
 			var g = new_text.to_lower().substr(0,len(engine))
@@ -351,15 +366,18 @@ func _on_prompt_text_submitted(new_text: String) -> void:
 				search_possibilities[g] + new_text.substr(len(g))
 				)
 			exit_safely()
+			return
 		
 	if new_text.to_lower() == "exit":
 		exit_safely()
+		return
 		
 	if new_text.to_lower() == "reload":
 		play_out_anim()
 		await get_tree().create_timer(1).timeout
 		get_start_programs()
 		exit_safely()
+		return
 	
 	if new_text.begins_with("App: "):
 		var without = new_text.replace("App: ","")
@@ -372,6 +390,7 @@ func _on_prompt_text_submitted(new_text: String) -> void:
 	if ":/"  in new_text:
 		OS.shell_open(new_text)
 		exit_safely()
+		return
 	
 	if new_text.begins_with("cmd") or new_text == "cmd":
 		var home = OS.get_environment("USERPROFILE")
@@ -379,11 +398,13 @@ func _on_prompt_text_submitted(new_text: String) -> void:
 		var extra = ' "' if !params else " && " + params + ' "'
 		OS.create_process("cmd.exe", ["/k", ' start cmd /k "cd /d ' + home + extra])
 		exit_safely()
+		return
 	
 	if new_text.to_lower() == "refreshenv":
 		update_path()
 		OS.create_process("cmd.exe",["/c",new_text])
 		exit_safely()
+		return
 	
 	if new_text.to_lower() in shellPrefixCommands:
 		var p = new_text.substr(6)
@@ -396,11 +417,13 @@ func _on_prompt_text_submitted(new_text: String) -> void:
 			path = OS.get_environment("USERPROFILE") + "\\Downloads"
 		OS.shell_open(path)
 		exit_safely()
+		return
 	
 	OS.create_process("cmd.exe",["/c" + " " + new_text])
 	exit_safely()
 
 func _on_timer_timeout() -> void:
+	waited_refresh = true
 	if $Main/Prompt.text.strip_edges() != "":
 		if $Main/Prompt.text.strip_edges() == lastContent: return
 		lastContent = $Main/Prompt.text.strip_edges()
@@ -416,7 +439,7 @@ func _on_item_list_item_clicked(index: int, _at_position: Vector2, mouse_button_
 	if mouse_button_index != 1: return
 	if curridx == index:
 		if pressedTab:
-			$Main/Prompt.emit_signal("text_submitted",item_list.get_item_text(curridx))
+			submit.emit(item_list.get_item_text(curridx))
 		pressedTab = true
 		$Main/Prompt.text = item_list.get_item_text(curridx)
 		curridx = 0

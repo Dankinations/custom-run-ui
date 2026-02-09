@@ -273,6 +273,27 @@ grow_vertical = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_1bvp3")
 
+[node name="loading" type="Window" parent="." unique_id=1426268484]
+transparent_bg = true
+oversampling_override = 1.0
+size = Vector2i(757, 23)
+visible = false
+wrap_controls = true
+unresizable = true
+borderless = true
+always_on_top = true
+transparent = true
+unfocusable = true
+
+[node name="Main" type="RichTextLabel" parent="loading" unique_id=324578780]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Loading... [0/?]"
+fit_content = true
+
 [node name="SettingsWindow" type="Window" parent="." unique_id=72332860]
 transparent_bg = true
 oversampling_override = 1.0
@@ -396,7 +417,6 @@ scale = Vector2(0.19921875, 0.18554688)
 texture = ExtResource("4_1bvp3")
 
 [connection signal="tree_exiting" from="." to="." method="_on_tree_exiting"]
-[connection signal="text_submitted" from="Main/Prompt" to="." method="_on_prompt_text_submitted"]
 [connection signal="toggled" from="Main/Settings" to="." method="_on_settings_toggled"]
 [connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]
 [connection signal="item_clicked" from="popup/ItemList" to="." method="_on_item_list_item_clicked"]
