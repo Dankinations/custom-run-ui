@@ -98,6 +98,8 @@ func _ready() -> void:
 						submitted = true
 					
 	)
+	window.grab_focus()
+	await get_tree().process_frame
 	$Main/Prompt.grab_focus()
 	$popup.position = window.position + window_offset
 
