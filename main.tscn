@@ -277,6 +277,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_1bvp3")
 transparent_bg = true
 oversampling_override = 1.0
 size = Vector2i(400, 300)
+visible = false
 wrap_controls = true
 unresizable = true
 borderless = true
