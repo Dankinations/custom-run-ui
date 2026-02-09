@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="CommandIndex" format=3 uid="uid://cnpflpes4vvep"]
+
+[ext_resource type="Script" uid="uid://cpdjpntf47rxw" path="res://Types/CommandData.gd" id="1_hx54t"]
+[ext_resource type="Script" uid="uid://bowagnofoul0b" path="res://Types/CommandIndex.gd" id="2_objhd"]
+
+[resource]
+script = ExtResource("2_objhd")
