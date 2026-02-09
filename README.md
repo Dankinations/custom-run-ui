@@ -10,6 +10,7 @@ Flow launcher UI written in GODOT (yes, godot)
 - refreshenv - reloads PATH environment (REQUIRES CHOCOLATEY)
 
 ### Important notes:
+- On the first launch, CRU will freeze a little, thats it reading ur shortcuts so it can add them to the list dont worry.
 - CRU does not support ALL "shell:PATH" commands, but it does support:
   - shell:startup
   - shell:downloads
