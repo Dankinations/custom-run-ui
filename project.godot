@@ -18,6 +18,7 @@ boot_splash/bg_color=Color(0.097028576, 0.10159343, 0.28343976, 1)
 boot_splash/stretch_mode=0
 boot_splash/use_filter=false
 boot_splash/image="uid://bxmoas8568g6h"
+config/icon="uid://bxmoas8568g6h"
 
 [display]
 
